@@ -1,6 +1,6 @@
 package com.achintya.spark
 
-class OffsetTimestampsMappingSingletonInitializer(accumulator:
+class OffsetTimestampsMappingSingletonExecutorInitializer(accumulator:
     OffsetTimestampsMappingAccumulatorV2.type) extends Serializable {
 
     if (OffsetTimestampsMappingSingleton.offsetTimestampsMapping.isEmpty) {
