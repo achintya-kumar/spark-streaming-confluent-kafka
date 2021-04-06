@@ -1,39 +1,43 @@
 package com.achintya.spark
 
+import com.achintya.spark.TypeDefinitions._
 import org.apache.kafka.common.TopicPartition
 import org.apache.spark.util.AccumulatorV2
 
-import scala.collection.mutable
+import java.util
 import scala.collection.JavaConverters._
 
-object OffsetTimestampsMappingAccumulatorV2 extends AccumulatorV2[(TopicPartition, mutable.Map[Long, Long]),
-        mutable.Map[TopicPartition, mutable.Map[Long, Long]]] {
+object OffsetTimestampsMappingAccumulatorV2 extends
+    AccumulatorV2[offsetTranslationWithTopicPartition, offsetTranslationWithTopicPartitionsMap] {
 
-    type offsetTranslationsMap = mutable.Map[Long, Long]
-    type offsetTranslationWithTopicPartition = (TopicPartition, offsetTranslationsMap)
-    type offsetTranslationWithTopicPartitionsMap = mutable.Map[TopicPartition, offsetTranslationsMap]
-
-    val offsetTimestampsMapping = mutable.Map[TopicPartition, offsetTranslationsMap]()
+    val offsetTimestampsMapping = new util.HashMap[TopicPartition, offsetTranslationsMap]()
 
     override def isZero: Boolean = offsetTimestampsMapping.isEmpty
 
-    override def copy(): AccumulatorV2[offsetTranslationWithTopicPartition,
-        offsetTranslationWithTopicPartitionsMap] = {
-        OffsetTimestampsMappingAccumulatorV2
-    }
+    override def copy(): AccumulatorV2[
+        offsetTranslationWithTopicPartition,
+        offsetTranslationWithTopicPartitionsMap] = OffsetTimestampsMappingAccumulatorV2
 
     override def reset(): Unit = offsetTimestampsMapping.clear()
 
-    override def add(v: (TopicPartition, offsetTranslationsMap)): Unit = {
-        val otMap = v._2.clone()
-        offsetTimestampsMapping.put(v._1, otMap)
+    override def add(v: (TopicPartition, offsetTranslationsMap)): Unit = this.synchronized {
+        val oldOtMap = offsetTimestampsMapping.getOrDefault(v._1, new offsetTranslationsMap)
+        val newOtMap = new offsetTranslationsMap(v._2)
+        newOtMap.putAll(oldOtMap)
+        offsetTimestampsMapping.put(v._1, newOtMap)
     }
 
     override def merge(
             other: AccumulatorV2[
                 offsetTranslationWithTopicPartition,
                 offsetTranslationWithTopicPartitionsMap]): Unit = {
-        other.value.keySet.foreach(key => offsetTimestampsMapping.put(key, other.value(key)))
+        other.value.asScala.keySet.foreach(key => {
+            val oldValue = offsetTimestampsMapping.getOrDefault(key, new offsetTranslationsMap())
+            val newValue = other.value.getOrDefault(key, new offsetTranslationsMap())
+            newValue.putAll(oldValue)
+            offsetTimestampsMapping.put(key, newValue)
+        })
+
     }
 
     override def value: offsetTranslationWithTopicPartitionsMap = offsetTimestampsMapping

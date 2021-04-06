@@ -2,17 +2,20 @@ package com.achintya.spark
 
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.common.serialization.StringDeserializer
-import org.apache.spark.SparkConf
+import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.streaming.kafka010.ConsumerStrategies.Subscribe
 import org.apache.spark.streaming.kafka010.LocationStrategies.PreferConsistent
 import org.apache.spark.streaming.kafka010.{CanCommitOffsets, HasOffsetRanges, KafkaUtils}
 import org.apache.spark.streaming.{Seconds, StreamingContext}
 
+import java.util
+
 case class OffsetProps(topic: String, partition: Int, fromOffset: Long, untilOffset: Long)
 
 object Driver {
     def main(args: Array[String]): Unit = {
+
         println("starting spark streaming")
         val sparkConf = new SparkConf()
         val spark = SparkSession
@@ -26,7 +29,7 @@ object Driver {
         val bootstrapServers = "localhost:9091"
 
         val ssc = new StreamingContext(spark.sparkContext, Seconds(5))
-        initializeTimestampsInterceptor(ssc)
+        initializeTimestampsInterceptor(ssc.sparkContext)
 
         val kafkaParams = Map[String, Object](
             "bootstrap.servers" -> bootstrapServers,
@@ -64,9 +67,9 @@ object Driver {
         ssc.stop()
     }
 
-    def initializeTimestampsInterceptor(ssc: StreamingContext): Unit = {
-        ssc.sparkContext.register(OffsetTimestampsMappingAccumulatorV2, "OffsetTimestampsMappingAccumulatorV2")
+    def initializeTimestampsInterceptor(sc: SparkContext): Unit = {
+        sc.register(OffsetTimestampsMappingAccumulatorV2, "OffsetTimestampsMappingAccumulatorV2")
         val otma = OffsetTimestampsMappingAccumulatorV2
-        ssc.sparkContext.broadcast(new OffsetTimestampsMappingSingletonExecutorInitializer(otma))
+        sc.broadcast(new OffsetTimestampsMappingSingletonExecutorInitializer(otma))
     }
 }
